@@ -14,7 +14,6 @@ import (
 )
 
 func NewClient(ctx context.Context, clientCfg config.ClientConfig) {
-	time.Sleep(time.Second * 4)
 	packetChan := make(chan net.Conn)
 
 	go func() {
@@ -24,6 +23,8 @@ func NewClient(ctx context.Context, clientCfg config.ClientConfig) {
 			log.Debug("client side", "fail to load client cert", map[string]interface{}{
 				"error": err.Error(),
 			})
+
+			return
 		}
 
 		caCertPool := x509.NewCertPool()
@@ -35,30 +36,44 @@ func NewClient(ctx context.Context, clientCfg config.ClientConfig) {
 			ServerName:         clientCfg.Sni,
 		}
 
-		foreignServerDial, foreignRadialErr := tls.Dial("tcp", clientCfg.ForeignServer, tlsCfg)
-		if foreignRadialErr != nil {
-			log.Error("client side", "server side started on port "+clientCfg.ForeignServer, nil)
+		for {
+			log.Debug("client side", "retry to connect", nil)
+
+			foreignServerDial, foreignRadialErr := tls.Dial("tcp", clientCfg.ForeignServer, tlsCfg)
+			if foreignRadialErr != nil {
+				log.Error("client side", "server side started on port "+clientCfg.ForeignServer, nil)
+				return
+			}
+
+			handShakeErr := foreignServerDial.Handshake()
+			if handShakeErr != nil {
+
+				log.Error("client side local srv to foreign srv", handShakeErr.Error(), nil)
+				return
+			}
+
+			packetChan <- foreignServerDial
 		}
-
-		handShakeErr := foreignServerDial.Handshake()
-		if handShakeErr != nil {
-
-			log.Error("client side local srv to foreign srv", handShakeErr.Error(), nil)
-			return
-		}
-
-		packetChan <- foreignServerDial
 	}()
 
 	func() {
-		localServer, err := net.Dial("tcp", clientCfg.LocalServer)
-		if err != nil {
-			log.Debug("client side local", "server side started on port "+clientCfg.LocalServer, nil)
+
+		for {
+
+			log.Debug("client side local server", "retry to connect", nil)
+
+			localServer, err := net.DialTimeout("tcp", clientCfg.LocalServer, 1*time.Second)
+			if err != nil {
+				log.Error("client local srv", "fail to start "+clientCfg.LocalServer, map[string]interface{}{
+					"error": err.Error(),
+				})
+			} else {
+
+				foreignServer := <-packetChan
+
+				RelayBetweenClients(foreignServer, localServer)
+			}
 		}
-
-		foreignServer := <-packetChan
-
-		RelayBetweenClients(foreignServer, localServer)
 	}()
 
 }

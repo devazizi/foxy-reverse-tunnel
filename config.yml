@@ -1,14 +1,14 @@
 clients:
   - name: first client
-    foreign_server: 192.168.1.5:4000
-    local_server: 192.168.1.5:9200
+    foreign_server: localhost:4000
+    local_server: localhost:9200
     client_certificate: /home/ali/Desktop/reverseTunnel/client.csr
     sni: snapp.ir
 
 servers:
   - name: first server
-    listen_on: 192.168.1.5:8080
-    server_on: 192.168.1.5:4000
+    listen_on: localhost:8080
+    server_on: localhost:4000
     public_key_path: /home/ali/Desktop/reverseTunnel/cert.crt
     private_key_path: /home/ali/Desktop/reverseTunnel/private.key
     sni: snapp.ir

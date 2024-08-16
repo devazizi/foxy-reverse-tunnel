@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"foxy-tunnel/config"
 	"foxy-tunnel/pkg/log"
 	"foxy-tunnel/pkg/net_helper"
@@ -39,7 +40,7 @@ func ServerSideServer(ctx context.Context, cfg config.ServerConfig, connChan cha
 
 	tlsCfg := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		ServerName:   "snapp.ir",
+		ServerName:   cfg.Sni,
 	}
 
 	listen, err := tls.Listen("tcp", cfg.ServerOn, tlsCfg)
@@ -53,25 +54,16 @@ func ServerSideServer(ctx context.Context, cfg config.ServerConfig, connChan cha
 
 	defer listen.Close()
 
-	serverConn, err := listen.Accept()
-
-	if err != nil {
-		log.Error("client server ", err.Error(), nil)
-	}
-
 	for {
-		clientConn := <-connChan
-		go HandleClientConnection(clientConn, serverConn)
+		serverConn, err := listen.Accept()
+
+		fmt.Println("accept tunnel connection", serverConn.RemoteAddr())
+		if err != nil {
+			log.Error("client server ", err.Error(), nil)
+		}
+
+		go HandlerClientConnWithServerReverseTunnelWorker(serverConn, connChan)
 	}
-	//for {
-	//	conn, err := listen.Accept()
-	//	if err != nil {
-	//		log.Error("client server ", err.Error(), nil)
-	//	}
-	//
-	//	// send connection to channel
-	//	connChan <- conn
-	//}
 
 }
 
@@ -111,17 +103,32 @@ func HandleClientConnection(clientConn net.Conn, serverConn net.Conn) {
 	wg.Add(2)
 
 	go func() {
-		io.Copy(clientConn, serverConn)
+		_, err := io.Copy(clientConn, serverConn)
+		if err != nil {
+			log.Error("client srv to tunnel srv", err.Error(), nil)
+		}
 		clientConn.Close()
 		wg.Done()
 	}()
 
 	go func() {
-		io.Copy(serverConn, clientConn)
+		_, err := io.Copy(serverConn, clientConn)
+		if err != nil {
+			log.Error("tunnel srv to client srv", err.Error(), nil)
+		}
 		wg.Done()
 	}()
 
 	wg.Wait()
+}
+
+func HandlerClientConnWithServerReverseTunnelWorker(srvConn net.Conn, cChan chan net.Conn) {
+	defer srvConn.Close()
+
+	for {
+		clientConn := <-cChan
+		go HandleClientConnection(clientConn, srvConn)
+	}
 }
 
 //func HandleClientConnection(conn net.Conn) {
