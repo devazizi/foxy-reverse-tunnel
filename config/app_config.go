@@ -16,6 +16,7 @@ type ServerConfig struct {
 	ServerOn       string `yaml:"server_on"`
 	PublicKeyPath  string `yaml:"public_key_path"`
 	PrivateKeyPath string `yaml:"private_key_path"`
+	Sni            string `yaml:"sni"`
 }
 
 type Config struct {

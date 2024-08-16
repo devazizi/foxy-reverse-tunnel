@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"crypto/tls"
 	"foxy-tunnel/config"
 	"foxy-tunnel/pkg/log"
 	"foxy-tunnel/pkg/net_helper"
@@ -21,17 +22,29 @@ func NewServer(ctx context.Context, serverCfg config.ServerConfig) {
 		}
 	}()
 
-	err := ServerSideServer(ctx, serverCfg.ServerOn, connChan)
+	err := ServerSideServer(ctx, serverCfg, connChan)
 	if err != nil {
 		log.Error("server server ", err.Error(), nil)
 	}
 
 }
 
-func ServerSideServer(ctx context.Context, serverListenOn string, connChan chan net.Conn) error {
-	listen, err := net.Listen("tcp", serverListenOn)
+func ServerSideServer(ctx context.Context, cfg config.ServerConfig, connChan chan net.Conn) error {
 
-	log.Debug("server side", "server side strarted on port "+serverListenOn, nil)
+	cert, err := tls.LoadX509KeyPair(cfg.PublicKeyPath, cfg.PrivateKeyPath)
+	if err != nil {
+		log.Debug("server side", "tls cert error", map[string]interface{}{"error": err.Error()})
+		return err
+	}
+
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ServerName:   "snapp.ir",
+	}
+
+	listen, err := tls.Listen("tcp", cfg.ServerOn, tlsCfg)
+
+	log.Debug("server side", "server side strarted on port "+cfg.ServerOn, nil)
 
 	if err != nil {
 		log.Error("client server ", err.Error(), nil)
