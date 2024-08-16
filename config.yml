@@ -1,0 +1,13 @@
+clients:
+  - name: first client
+    foreign_server: localhost:4000
+    local_server: 185.142.156.233:9100
+    client_certificate: /home/ali/Desktop/certificate.pem
+    sni: snapp.ir
+
+servers:
+  - name: first server
+    listen_on: localhost:8080
+    server_on: localhost:4000
+    public_key_path: /home/ali/Desktop/public.pem
+    private_key_path: /home/ali/Desktop/public.pem
